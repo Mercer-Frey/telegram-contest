@@ -3,6 +3,7 @@ const WIDTH = 600
 const HEIGHT = 200
 const PADDING = 40
 const ROWS_COUNT = 5
+const COLS_COUNT = 6
 const DPI_WIDTH = WIDTH * MULTIPLE
 const DPI_HEIGHT = HEIGHT * MULTIPLE
 const VIEW_WIDTH = DPI_WIDTH
@@ -19,6 +20,31 @@ function chart(canvas, data) {
     canvas.width = DPI_WIDTH
     canvas.height = DPI_HEIGHT
 
+    const yData = data.columns.filter(col => data.types[col[0]] === 'line')
+    const xData = data.columns.filter(col => data.types[col[0]] !== 'line')[0]
+
+    yAxis(ctx, yMin, yMax)
+    xAxis(ctx, xData)
+
+    yData.map(toCoords()).forEach((coords, i) => line(ctx, coords, {color: data.colors[yData[i][0]]}))
+}
+
+function line(ctx, coords, {color}) {
+    ctx.beginPath()
+    ctx.lineWidth = 4
+    ctx.strokeStyle = color
+    for (const [x, y] of coords) ctx.lineTo(x, y)
+    ctx.stroke()
+    ctx.closePath()
+}
+
+function toCoords() {
+    return (col) => col.map((y, i) =>
+        [Math.floor((i - 1) * xRatio), Math.floor(DPI_HEIGHT - PADDING - y * yRatio)])
+        .filter((_, i) => i !== 0)
+}
+
+function yAxis(ctx, yMin, yMax) {
     const step = VIEW_HEIGHT / ROWS_COUNT
     const textStep = (yMax - yMin) / ROWS_COUNT
     ctx.beginPath()
@@ -34,30 +60,24 @@ function chart(canvas, data) {
     }
     ctx.stroke()
     ctx.closePath()
-    data.columns.forEach(col => {
-        const name = col[0]
-        if (data.types[name] === 'line') {
-            const coords = col
-                .map((y, i) => [
-                    Math.floor((i - 1) * xRatio),
-                    Math.floor(DPI_HEIGHT - PADDING - y * yRatio)])
-                .filter((_, i) => i !== 0)
-            const color = data.colors[name]
-            line(ctx, coords, {color})
-        }
-    })
 }
 
-function line(ctx, coords, {color}) {
+function xAxis(ctx, data) {
+    const step = Math.round(data.length / COLS_COUNT)
     ctx.beginPath()
-    ctx.lineWidth = 4
-    ctx.strokeStyle = color
-    for (const [x, y] of coords) ctx.lineTo(x, y)
-    ctx.stroke()
+    for (let i = 1; i < data.length; i += step) {
+        const text = toDate(data[i])
+        const x = i * xRatio
+        ctx.fillText(text, x, DPI_HEIGHT - 5)
+    }
     ctx.closePath()
 }
 
-chart(document.getElementById('chart'), getChartData())
+function toDate(timestamp) {
+    const shortMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',]
+    const date = new Date(timestamp)
+    return `${shortMonths[date.getMonth()]} ${date.getDate()}`
+}
 
 function computeBoundaries({columns, types}) {
     let min, max
@@ -445,3 +465,5 @@ function getChartData() {
         },
     ][0]
 }
+
+chart(document.getElementById('chart'), getChartData())
