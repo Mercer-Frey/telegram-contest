@@ -1,7 +1,6 @@
 import {getChartData} from "./data";
-import {boundaries, css, isOver, toCoords, toDate} from "./utils";
+import {boundaries, circle, css, isOver, line, toCoords, toDate} from "./utils";
 import {
-    CIRCLE_RADIUS,
     COLS_COUNT,
     DPI_HEIGHT,
     DPI_WIDTH,
@@ -14,9 +13,11 @@ import {
     WIDTH,
 } from "./config";
 import {Tooltip} from "./tooltip";
+import {SliderChart} from "./slider-chart";
 
 export class Chart {
     constructor(root, data) {
+        this.slider = new SliderChart(root.querySelector('[data-el="slider"]'), data)
         this.tip = new Tooltip(root.querySelector('[data-el="tooltip"]'))
         this.canvas = root.querySelector('[data-el="main"]')
         this.ctx = this.canvas.getContext('2d')
@@ -61,6 +62,7 @@ export class Chart {
     paint() {
         this.clear()
         const [yMin, yMax] = boundaries(getChartData())
+
         const yRatio = VIEW_HEIGHT / (yMax - yMin)
         const xRatio = VIEW_WIDTH / (getChartData().columns[0].length - 2)
         const yData = this.data.columns.filter(col => this.data.types[col[0]] === 'line')
@@ -69,13 +71,13 @@ export class Chart {
         this.yAxis(yMin, yMax)
         this.xAxis(xData, yData, xRatio)
 
-        yData.map(toCoords(xRatio, yRatio))
+        yData.map(toCoords(xRatio, yRatio,DPI_HEIGHT , PADDING))
             .forEach((coords, i) => {
                 const color = this.data.colors[yData[i][0]]
-                this.line(coords, {color})
+                line(this.ctx, coords, {color})
                 for (const [x, y] of coords) {
                     if (isOver(this.proxy.mouse, x, coords.length)) {
-                        this.circle([x, y], color)
+                        circle(this.ctx, [x, y], color)
                         break
                     }
                 }
@@ -132,25 +134,6 @@ export class Chart {
         this.ctx.closePath()
     }
 
-    line(coords, {color}) {
-        this.ctx.beginPath()
-        this.ctx.lineWidth = 4
-        this.ctx.strokeStyle = color
-        for (const [x, y] of coords) this.ctx.lineTo(x, y)
-        this.ctx.stroke()
-        this.ctx.closePath()
-    }
-
-    circle([x, y], color) {
-        this.ctx.beginPath()
-        this.ctx.strokeStyle = color
-        this.ctx.fillStyle = '#fff'
-        this.ctx.arc(x, y, CIRCLE_RADIUS, 0, Math.PI * 2)
-        this.ctx.fill()
-        this.ctx.stroke()
-        this.ctx.closePath()
-    }
-
     clear() {
         this.ctx.clearRect(0, 0, DPI_WIDTH, DPI_HEIGHT)
     }
@@ -159,5 +142,4 @@ export class Chart {
         this.canvas.removeEventListener('mousemove', () => this.mousemove)
         this.canvas.removeEventListener('mouseleave', () => this.mouseleave)
     }
-
 }

@@ -1,11 +1,13 @@
 export const MULTIPLE = 2
 export const WIDTH = 600
 export const HEIGHT = 200
+export const HEIGHT_SLIDER = 40
 export const PADDING = 40
 export const ROWS_COUNT = 5
 export const COLS_COUNT = 6
 export const CIRCLE_RADIUS = 8
 export const DPI_WIDTH = WIDTH * MULTIPLE
 export const DPI_HEIGHT = HEIGHT * MULTIPLE
-export const VIEW_WIDTH = DPI_WIDTH
+export const DPI_HEIGHT_SLIDER = HEIGHT_SLIDER * MULTIPLE
 export const VIEW_HEIGHT = DPI_HEIGHT - PADDING * MULTIPLE
+export const VIEW_WIDTH = DPI_WIDTH

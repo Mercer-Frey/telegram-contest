@@ -1,4 +1,4 @@
-import {DPI_HEIGHT, DPI_WIDTH, PADDING} from "./config";
+import {CIRCLE_RADIUS, DPI_WIDTH} from "./config";
 
 export function isOver(mouse, x, length) {
     if (!mouse) return false
@@ -6,9 +6,9 @@ export function isOver(mouse, x, length) {
     return Math.abs(x - mouse.x) < width / 2
 }
 
-export function toCoords(xRatio, yRatio) {
+export function toCoords(xRatio, yRatio, height, padding = 0) {
     return (col) => col.map((y, i) =>
-        [Math.floor((i - 1) * xRatio), Math.floor(DPI_HEIGHT - PADDING - y * yRatio)])
+        [Math.floor((i - 1) * xRatio), Math.floor(height - padding - y * yRatio)])
         .filter((_, i) => i !== 0)
 }
 
@@ -40,4 +40,24 @@ export function boundaries({columns, types}) {
 
 export function css(el, styles = {}) {
     Object.assign(el.style, styles)
+}
+
+
+export function line(ctx, coords, {color}) {
+    ctx.beginPath()
+    ctx.lineWidth = 4
+    ctx.strokeStyle = color
+    for (const [x, y] of coords) ctx.lineTo(x, y)
+    ctx.stroke()
+    ctx.closePath()
+}
+
+export function circle(ctx, [x, y], color) {
+    ctx.beginPath()
+    ctx.strokeStyle = color
+    ctx.fillStyle = '#fff'
+    ctx.arc(x, y, CIRCLE_RADIUS, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.stroke()
+    ctx.closePath()
 }
