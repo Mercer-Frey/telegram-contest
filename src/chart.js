@@ -1,5 +1,5 @@
 import {getChartData} from "./data";
-import {boundaries, isOver, toCoords, toDate} from "./utils";
+import {boundaries, css, isOver, toCoords, toDate} from "./utils";
 import {
     CIRCLE_RADIUS,
     COLS_COUNT,
@@ -13,20 +13,22 @@ import {
     VIEW_WIDTH,
     WIDTH,
 } from "./config";
+import {Tooltip} from "./tooltip";
 
 export class Chart {
-    constructor(canvas, data) {
-        this.canvas = canvas
+    constructor(root, data) {
+        this.tip = new Tooltip(root.querySelector('[data-el="tooltip"]'))
+        this.canvas = root.querySelector('[data-el="main"]')
+        this.ctx = this.canvas.getContext('2d')
         this.data = data
-        this.ctx = canvas.getContext('2d')
-        canvas.style.width = `${WIDTH}px`
-        canvas.style.height = `${HEIGHT}px`
-        canvas.width = DPI_WIDTH
-        canvas.height = DPI_HEIGHT
 
         this.proxy = this.proxyMouseMove()
         this.canvas.addEventListener('mousemove', e => this.mousemove(e))
-        this.canvas.addEventListener('mouseleave', () => this.mouseleave)
+        this.canvas.addEventListener('mouseleave', () => this.mouseleave())
+
+        css(this.canvas, {width: `${WIDTH}px`, height: `${HEIGHT}px`})
+        this.canvas.height = DPI_HEIGHT
+        this.canvas.width = DPI_WIDTH
     }
 
     init() {
@@ -43,13 +45,17 @@ export class Chart {
         })
     }
 
-    mousemove({clientX}) {
-        const {left} = this.canvas.getBoundingClientRect()
-        this.proxy.mouse = {x: (clientX - left) * MULTIPLE}
+    mousemove({clientX, clientY}) {
+        const {left, top} = this.canvas.getBoundingClientRect()
+        this.proxy.mouse = {
+            x: (clientX - left) * MULTIPLE,
+            tooltip: {left: clientX - left, top: clientY - top}
+        }
     }
 
     mouseleave() {
         this.proxy.mouse = null
+        this.tip.hide()
     }
 
     paint() {
@@ -61,7 +67,7 @@ export class Chart {
         const xData = this.data.columns.filter(col => this.data.types[col[0]] !== 'line')[0]
 
         this.yAxis(yMin, yMax)
-        this.xAxis(xData, xRatio)
+        this.xAxis(xData, yData, xRatio)
 
         yData.map(toCoords(xRatio, yRatio))
             .forEach((coords, i) => {
@@ -95,7 +101,7 @@ export class Chart {
         this.ctx.closePath()
     }
 
-    xAxis(xData, xRatio) {
+    xAxis(xData, yData, xRatio) {
         const step = Math.round(xData.length / COLS_COUNT)
         this.ctx.beginPath()
         for (let i = 1; i < xData.length; i++) {
@@ -111,6 +117,15 @@ export class Chart {
                 this.ctx.moveTo(x, PADDING)
                 this.ctx.lineTo(x, DPI_HEIGHT - PADDING)
                 this.ctx.restore()
+
+                this.tip.show(this.proxy.mouse.tooltip, {
+                    title: toDate(xData[i]),
+                    items: yData.map(col => ({
+                        color: this.data.colors[col[0]],
+                        name: this.data.names[col[0]],
+                        value: col[i + 1]
+                    }))
+                })
             }
         }
         this.ctx.stroke()
@@ -141,7 +156,6 @@ export class Chart {
     }
 
     destroy() {
-        cancelAnimationFrame()
         this.canvas.removeEventListener('mousemove', () => this.mousemove)
         this.canvas.removeEventListener('mouseleave', () => this.mouseleave)
     }
