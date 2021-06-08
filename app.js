@@ -4,29 +4,80 @@ const HEIGHT = 200
 const PADDING = 40
 const ROWS_COUNT = 5
 const COLS_COUNT = 6
+const CIRCLE_RADIUS = 8
 const DPI_WIDTH = WIDTH * MULTIPLE
 const DPI_HEIGHT = HEIGHT * MULTIPLE
 const VIEW_WIDTH = DPI_WIDTH
 const VIEW_HEIGHT = DPI_HEIGHT - PADDING * MULTIPLE
 
-const [yMin, yMax] = computeBoundaries(getChartData())
-const yRatio = VIEW_HEIGHT / (yMax - yMin)
-const xRatio = VIEW_WIDTH / (getChartData().columns[0].length - 2)
+const tgChart = chart(document.getElementById('chart'), getChartData())
+tgChart.init()
 
 function chart(canvas, data) {
+    let raf
     const ctx = canvas.getContext('2d')
     canvas.style.width = `${WIDTH}px`
     canvas.style.height = `${HEIGHT}px`
     canvas.width = DPI_WIDTH
     canvas.height = DPI_HEIGHT
 
-    const yData = data.columns.filter(col => data.types[col[0]] === 'line')
-    const xData = data.columns.filter(col => data.types[col[0]] !== 'line')[0]
+    const proxy = new Proxy({}, {
+        set(...args) {
+            raf = requestAnimationFrame(paint)
+            return Reflect.set(...args)
+        }
+    })
 
-    yAxis(ctx, yMin, yMax)
-    xAxis(ctx, xData)
+    function mousemove({clientX, clientY}) {
+        const {left} = canvas.getBoundingClientRect()
+        proxy.mouse = {x: (clientX - left) * MULTIPLE}
+    }
 
-    yData.map(toCoords()).forEach((coords, i) => line(ctx, coords, {color: data.colors[yData[i][0]]}))
+    function mouseleave() {
+        proxy.mouse = null
+    }
+
+    canvas.addEventListener('mousemove', mousemove)
+    canvas.addEventListener('mouseleave', mouseleave)
+
+    function paint() {
+        clear()
+        const [yMin, yMax] = computeBoundaries(getChartData())
+        const yRatio = VIEW_HEIGHT / (yMax - yMin)
+        const xRatio = VIEW_WIDTH / (getChartData().columns[0].length - 2)
+        const yData = data.columns.filter(col => data.types[col[0]] === 'line')
+        const xData = data.columns.filter(col => data.types[col[0]] !== 'line')[0]
+
+        yAxis(ctx, yMin, yMax)
+        xAxis(ctx, xData, xRatio, proxy)
+
+        yData.map(toCoords(xRatio, yRatio))
+            .forEach((coords, i) => {
+                const color = data.colors[yData[i][0]]
+                line(ctx, coords, {color})
+                for (const [x, y] of coords) {
+                    if (isOver(proxy.mouse, x, coords.length)) {
+                        circle(ctx, [x, y], color)
+                        break
+                    }
+                }
+            })
+    }
+
+    function clear() {
+        ctx.clearRect(0, 0, DPI_WIDTH, DPI_HEIGHT)
+    }
+
+    return {
+        init() {
+            paint()
+        },
+        destroy() {
+            cancelAnimationFrame(raf)
+            canvas.removeEventListener('mousemove', mousemove)
+            canvas.removeEventListener('mouseleave', mouseleave)
+        }
+    }
 }
 
 function line(ctx, coords, {color}) {
@@ -38,16 +89,21 @@ function line(ctx, coords, {color}) {
     ctx.closePath()
 }
 
-function toCoords() {
-    return (col) => col.map((y, i) =>
-        [Math.floor((i - 1) * xRatio), Math.floor(DPI_HEIGHT - PADDING - y * yRatio)])
-        .filter((_, i) => i !== 0)
+function circle(ctx, [x, y], color) {
+    ctx.beginPath()
+    ctx.strokeStyle = color
+    ctx.fillStyle = '#fff'
+    ctx.arc(x, y, CIRCLE_RADIUS, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.stroke()
+    ctx.closePath()
 }
 
 function yAxis(ctx, yMin, yMax) {
     const step = VIEW_HEIGHT / ROWS_COUNT
     const textStep = (yMax - yMin) / ROWS_COUNT
     ctx.beginPath()
+    ctx.lineWidth = 1
     ctx.strokeStyle = '#bbb'
     ctx.fillStyle = '#96a2aa'
     ctx.font = 'normal 20px Helvetica, sans-serif'
@@ -62,15 +118,38 @@ function yAxis(ctx, yMin, yMax) {
     ctx.closePath()
 }
 
-function xAxis(ctx, data) {
+function xAxis(ctx, data, xRatio, {mouse}) {
     const step = Math.round(data.length / COLS_COUNT)
     ctx.beginPath()
-    for (let i = 1; i < data.length; i += step) {
-        const text = toDate(data[i])
+    for (let i = 1; i < data.length; i++) {
         const x = i * xRatio
-        ctx.fillText(text, x, DPI_HEIGHT - 5)
+
+        if ((i - 1) % step === 0) {
+            const text = toDate(data[i])
+            ctx.fillText(text, x, DPI_HEIGHT - 5)
+        }
+
+        if (isOver(mouse, x, data.length)) {
+            ctx.save()
+            ctx.moveTo(x, PADDING)
+            ctx.lineTo(x, DPI_HEIGHT - PADDING)
+            ctx.restore()
+        }
     }
+    ctx.stroke()
     ctx.closePath()
+}
+
+function isOver(mouse, x, length) {
+    if (!mouse) return false
+    const width = DPI_WIDTH / length
+    return Math.abs(x - mouse.x) < width / 2
+}
+
+function toCoords(xRatio, yRatio) {
+    return (col) => col.map((y, i) =>
+        [Math.floor((i - 1) * xRatio), Math.floor(DPI_HEIGHT - PADDING - y * yRatio)])
+        .filter((_, i) => i !== 0)
 }
 
 function toDate(timestamp) {
@@ -466,4 +545,3 @@ function getChartData() {
     ][0]
 }
 
-chart(document.getElementById('chart'), getChartData())
